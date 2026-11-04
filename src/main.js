@@ -619,9 +619,9 @@ class PlayScene extends Phaser.Scene {
     car.spr.setTint(0xffb0a8);
 
     // results
-    this.syncProgress();
     const sc = Math.floor(this.score);
     this.newBest = sc > this.save.best;
+    this.syncProgress();
     this.save.runs += 1;
     if (this.newBest) this.save.best = sc;
     this.save.bestDist = Math.max(this.save.bestDist, Math.floor(this.dist / 10));
