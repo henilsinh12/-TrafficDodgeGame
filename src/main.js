@@ -621,11 +621,12 @@ class PlayScene extends Phaser.Scene {
     // results
     const sc = Math.floor(this.score);
     this.newBest = sc > this.save.best;
+    this.syncProgress();
     this.save.runs += 1;
-    this.save.coins += this.runCoins;
     if (this.newBest) this.save.best = sc;
     this.save.bestDist = Math.max(this.save.bestDist, Math.floor(this.dist / 10));
-    Platform.sendScore(sc);
+    // YouTube's leaderboard score must match the best score stored in the game save.
+    Platform.sendScore(this.save.best);
     Platform.saveProgress(this.save);
   }
 
@@ -896,6 +897,7 @@ class PlayScene extends Phaser.Scene {
       if (c.y > UNIT_H + 60) { c.spr.destroy(); this.coinList.splice(i, 1); continue; }
       if (playing && Math.abs(c.y - PLAYER_Y) < PL.halfH + 26 && Math.abs(laneOffset(c.lane) - px) < PL.halfW + 28) {
         this.runCoins++;
+        this.save.coins++;
         Sfx.coin();
         const x = c.spr.x;
         for (let n = 0; n < 8; n++) {
@@ -1069,7 +1071,8 @@ class PlayScene extends Phaser.Scene {
 
     // level up
     const lvl = Math.floor(this.dist / 9000);
-    if (lvl > this.level) {
+    const levelChanged = lvl > this.level;
+    if (levelChanged) {
       this.level = lvl;
       this.toast('SPEED UP!');
       Sfx.levelUp();
@@ -1091,6 +1094,8 @@ class PlayScene extends Phaser.Scene {
 
     if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0; }
     this.score = this.dist / 55 + this.dodges * 10 + this.runCoins * 25 + this.bonus;
+    this.syncProgress();
+    if (levelChanged) Platform.saveProgress(this.save);
     Sfx.engineSet(clamp((this.scroll - 500) / 850, 0, 1));
     this.placePlayer(0);
   }
@@ -1118,12 +1123,21 @@ class PlayScene extends Phaser.Scene {
     }
   }
 
+  /* ------------------------------------------------------- saved progress */
+
+  /** Keep cloud-save fields current during a run, not only after a crash. */
+  syncProgress() {
+    this.save.best = Math.max(this.save.best, Math.floor(this.score));
+    this.save.bestDist = Math.max(this.save.bestDist, Math.floor(this.dist / 10));
+  }
+
   /* ----------------------------------------------------------- host hooks */
 
   hostPause() {
     if (this.hostPaused) return;
     this.hostPaused = true;
     this.steerPointer = null;
+    this.syncProgress();
     Platform.saveProgress(this.save);
   }
 
