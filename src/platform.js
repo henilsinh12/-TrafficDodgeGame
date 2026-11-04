@@ -50,6 +50,7 @@ const Platform = (() => {
   }
 
   let loadPromise = null;
+  let retryLoadPromise = null;
   let loadedOk = false;
 
   async function doLoad() {
@@ -76,15 +77,37 @@ const Platform = (() => {
   }
 
   /**
-   * Persist progress. If the initial load failed, retry loading first (saveData is rejected
-   * by YouTube if loadData has not succeeded) and merge so we never overwrite better data.
+   * Wait for the original load request before retrying. The boot screen may time out
+   * visually while loadData() is still pending; starting a second load at that point
+   * can race the first request. A shared retry promise also prevents simultaneous
+   * save requests from launching duplicate retries after a failed load.
+   */
+  async function ensureLoadedForSave() {
+    if (loadedOk) return null;
+
+    if (!loadPromise) loadPromise = doLoad();
+    let cloud = await loadPromise;
+    if (loadedOk) return cloud;
+
+    if (!retryLoadPromise) {
+      retryLoadPromise = doLoad().finally(() => {
+        retryLoadPromise = null;
+      });
+    }
+    cloud = await retryLoadPromise;
+    return loadedOk ? cloud : null;
+  }
+
+  /**
+   * Persist progress. A successful loadData() must precede saveData(). If the first
+   * load failed, retry once for this save attempt and merge so better cloud progress
+   * is never overwritten. If the load is still unavailable, skip this save.
    */
   async function saveProgress(save) {
     try {
       if (!loadedOk) {
-        loadPromise = null;
-        const cloud = await loadSave();
-        if (!loadedOk) return false;           // still unavailable: skip, try next time
+        const cloud = await ensureLoadedForSave();
+        if (!loadedOk || !cloud) return false;
         save.best = Math.max(save.best, cloud.best);
         save.bestDist = Math.max(save.bestDist, cloud.bestDist);
         save.coins = Math.max(save.coins, cloud.coins);
