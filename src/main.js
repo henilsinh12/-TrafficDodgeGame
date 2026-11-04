@@ -625,7 +625,8 @@ class PlayScene extends Phaser.Scene {
     this.save.coins += this.runCoins;
     if (this.newBest) this.save.best = sc;
     this.save.bestDist = Math.max(this.save.bestDist, Math.floor(this.dist / 10));
-    Platform.sendScore(sc);
+    // YouTube's leaderboard score must match the best score stored in the game save.
+    Platform.sendScore(this.save.best);
     Platform.saveProgress(this.save);
   }
 
